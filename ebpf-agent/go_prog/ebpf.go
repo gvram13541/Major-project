@@ -8,13 +8,13 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/link"
 	"github.com/gorilla/websocket"
-	"github.com/joho/godotenv"
 )
 
 const (
@@ -24,55 +24,56 @@ const (
 )
 
 var (
-	upgrader  = websocket.Upgrader{}
-	wsClients = make(map[*websocket.Conn]bool) // Track WebSocket clients
+	upgrader  = websocket.Upgrader{CheckOrigin: func(r *http.Request) bool { return true }}
+	wsClients = make(map[*websocket.Conn]bool)
+	wsMutex   sync.Mutex
 )
 
+type EbpfObjects struct {
+	Program            *ebpf.Program
+	HTTPReqMap         *ebpf.Map
+	OutboundTrafficMap *ebpf.Map
+	BandwidthMap       *ebpf.Map
+	FirewallMap        *ebpf.Map
+	DNSQueryMap        *ebpf.Map
+	LatencyMap         *ebpf.Map
+	JitterMap          *ebpf.Map
+}
+
 func main() {
-	// Load environment variables
-	_ = godotenv.Load()
-
-	// Set host from .env or default to 0.0.0.0
-	host := os.Getenv("HOST")
-	if host == "" {
-		host = "0.0.0.0"
-	}
-
-	// Get the first active network interface dynamically
 	interfaceName, err := getFirstActiveInterface()
 	if err != nil {
 		log.Fatalf("Failed to find active interface: %v", err)
 	}
 	fmt.Printf("Using interface: %s\n", interfaceName)
 
-	// Open eBPF object file
 	spec, err := ebpf.LoadCollectionSpec(progPath)
 	if err != nil {
 		log.Fatalf("Failed to load eBPF program: %v", err)
 	}
 
-	// Load eBPF objects
-	objs := struct {
-		Program              *ebpf.Program `ebpf:"xdp_monitor"`
-		HTTPReqMap           *ebpf.Map     `ebpf:"http_req_map"`
-		OutboundTrafficMap   *ebpf.Map     `ebpf:"outbound_traffic_map"`
-		LatencyMap           *ebpf.Map     `ebpf:"latency_map"`
-		DDOSMap              *ebpf.Map     `ebpf:"ddos_map"`
-		FirewallMap          *ebpf.Map     `ebpf:"firewall_map"`
-	}{}
-
-	if err := spec.LoadAndAssign(&objs, nil); err != nil {
-		log.Fatalf("Failed to load and assign eBPF objects: %v", err)
+	coll, err := ebpf.NewCollection(spec)
+	if err != nil {
+		log.Fatalf("Failed to load eBPF collection: %v", err)
 	}
-	defer objs.Program.Close()
+	defer coll.Close()
 
-	// Get the network interface index
+	objs := EbpfObjects{
+		Program:            coll.Programs["xdp_monitor"],
+		HTTPReqMap:         coll.Maps["http_req_map"],
+		OutboundTrafficMap: coll.Maps["outbound_traffic_map"],
+		BandwidthMap:       coll.Maps["bandwidth_map"],
+		FirewallMap:        coll.Maps["firewall_map"],
+		DNSQueryMap:        coll.Maps["dns_query_map"],
+		LatencyMap:         coll.Maps["latency_map"],
+		JitterMap:          coll.Maps["jitter_map"],
+	}
+
 	iface, err := net.InterfaceByName(interfaceName)
 	if err != nil {
 		log.Fatalf("Failed to get interface %s: %v", interfaceName, err)
 	}
 
-	// Attach XDP program to the interface
 	xdpLink, err := link.AttachXDP(link.XDPOptions{
 		Program:   objs.Program,
 		Interface: iface.Index,
@@ -84,13 +85,9 @@ func main() {
 
 	fmt.Printf("✅ XDP Program 'xdp_monitor' loaded and attached to %s\n", interfaceName)
 
-	// Start WebSocket server
-	go startWebSocketServer(host)
+	go startWebSocketServer()
+	go streamMetrics(objs)
 
-	// Start sending metrics to WebSocket clients
-	go streamMetrics(objs.HTTPReqMap, objs.OutboundTrafficMap, objs.LatencyMap, objs.DDOSMap, objs.FirewallMap)
-
-	// Listen for termination signals
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
 	<-sigChan
@@ -98,112 +95,95 @@ func main() {
 	fmt.Println("Detaching XDP Program...")
 }
 
-// **Get First Active Network Interface**
 func getFirstActiveInterface() (string, error) {
-	interfaces, err := net.Interfaces()
+	ifs, err := net.Interfaces()
 	if err != nil {
 		return "", err
 	}
 
-	for _, iface := range interfaces {
-		// Ignore loopback and down interfaces
-		if iface.Flags&net.FlagLoopback == 0 && iface.Flags&net.FlagUp != 0 {
-			addrs, _ := iface.Addrs()
-			for _, addr := range addrs {
-				if ipNet, ok := addr.(*net.IPNet); ok && !ipNet.IP.IsLoopback() && ipNet.IP.To4() != nil {
-					return iface.Name, nil
-				}
-			}
+	for _, iface := range ifs {
+		if iface.Flags&net.FlagUp != 0 && iface.Flags&net.FlagLoopback == 0 {
+			return iface.Name, nil
 		}
 	}
 	return "", fmt.Errorf("no active network interface found")
 }
 
-// **Start WebSocket Server**
-func startWebSocketServer(host string) {
-	serverAddr := fmt.Sprintf("%s:%s", host, port) // Use dynamically set domain and port
+func startWebSocketServer() {
 	http.HandleFunc(wsRoute, handleWebSocket)
-	log.Printf("🚀 WebSocket server started on ws://%s%s\n", serverAddr, wsRoute)
-	log.Fatal(http.ListenAndServe(serverAddr, nil))
+	log.Printf("WebSocket server started on ws://localhost:%s%s", port, wsRoute)
+	if err := http.ListenAndServe(":"+port, nil); err != nil {
+		log.Fatalf("WebSocket server failed: %v", err)
+	}
 }
 
-// **Handle WebSocket Connections**
 func handleWebSocket(w http.ResponseWriter, r *http.Request) {
-	upgrader.CheckOrigin = func(r *http.Request) bool { return true }
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		log.Println("Failed to upgrade WebSocket:", err)
+		log.Printf("WebSocket upgrade failed: %v", err)
 		return
 	}
+	defer conn.Close()
+
+	wsMutex.Lock()
 	wsClients[conn] = true
-	log.Println("New WebSocket client connected.")
+	wsMutex.Unlock()
 
-	defer func() {
-		conn.Close()
-		delete(wsClients, conn)
-		log.Println("WebSocket client disconnected.")
-	}()
-
-	// Keep connection alive
 	for {
 		_, _, err := conn.ReadMessage()
 		if err != nil {
-			break
+			wsMutex.Lock()
+			delete(wsClients, conn)
+			wsMutex.Unlock()
+			return
 		}
 	}
 }
 
-// **Stream Metrics to WebSockets**
-func streamMetrics(httpMap, exfilMap, latencyMap, ddosMap, firewallMap *ebpf.Map) {
+func streamMetrics(objs EbpfObjects) {
 	ticker := time.NewTicker(2 * time.Second)
 	defer ticker.Stop()
 
 	for range ticker.C {
 		metrics := map[string]map[string]uint64{
-			"HTTP Requests":         readMap(httpMap),
-			"Data Exfiltration":     readMap(exfilMap),
-			"Latency":               readMap(latencyMap),
-			"DDoS Attack Detection": readMap(ddosMap),
-			"Firewall Blocked IPs":  readMap(firewallMap),
+			"HTTP Requests":     readMap(objs.HTTPReqMap),
+			"Outbound Traffic":  readMap(objs.OutboundTrafficMap),
+			"Bandwidth Usage":   readMap(objs.BandwidthMap),
+			"Firewall Rules":    readMap(objs.FirewallMap),
+			"DNS Queries":       readMap(objs.DNSQueryMap),
+			"Latency":           readMap(objs.LatencyMap),
+			"Jitter":            readMap(objs.JitterMap),
 		}
 
-		// Send formatted metrics to WebSocket clients
-		broadcastMetrics(metrics)
+		formattedData, err := json.MarshalIndent(metrics, "", "  ")
+		if err != nil {
+			log.Printf("❌ Error formatting metrics: %v", err)
+			continue
+		}
+
+		log.Println("\n📊 Metrics Data Sent:\n" + string(formattedData))
+		broadcastMetrics(formattedData)
 	}
 }
 
-// **Read eBPF Map Data**
 func readMap(m *ebpf.Map) map[string]uint64 {
-	data := make(map[string]uint64)
+	result := make(map[string]uint64)
 	iter := m.Iterate()
 	var key uint32
 	var value uint64
 
 	for iter.Next(&key, &value) {
-		ip := intToIP(key)
-		data[ip] = value
+		result[fmt.Sprintf("%d", key)] = value
 	}
-	return data
+	return result
 }
 
-// **Convert uint32 IP to String**
-func intToIP(ip uint32) string {
-	return fmt.Sprintf("%d.%d.%d.%d",
-		byte(ip>>24), byte(ip>>16), byte(ip>>8), byte(ip))
-}
-
-// **Send Data to WebSocket Clients (Formatted)**
-func broadcastMetrics(metrics map[string]map[string]uint64) {
-	// Format the metrics as indented JSON for better readability
-	formattedMetrics, err := json.MarshalIndent(metrics, "", "    ")
-	if err != nil {
-		log.Println("Error formatting metrics:", err)
-		return
-	}
-
+func broadcastMetrics(data []byte) {
+	wsMutex.Lock()
+	defer wsMutex.Unlock()
 	for client := range wsClients {
-		if err := client.WriteMessage(websocket.TextMessage, formattedMetrics); err != nil {
-			log.Println("Error sending metrics:", err)
+		if err := client.WriteMessage(websocket.TextMessage, data); err != nil {
+			log.Printf("Failed to send message: %v", err)
 			client.Close()
 			delete(wsClients, client)
 		}
