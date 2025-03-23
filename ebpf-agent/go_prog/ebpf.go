@@ -15,6 +15,9 @@ import (
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/link"
 	"github.com/gorilla/websocket"
+	"github.com/shirou/gopsutil/cpu"
+	"github.com/shirou/gopsutil/disk"
+	"github.com/shirou/gopsutil/mem"
 )
 
 const (
@@ -140,12 +143,50 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func collectSystemMetrics() map[string]interface{} {
+	metrics := make(map[string]interface{})
+
+	// Collect CPU usage
+	cpuPercentages, err := cpu.Percent(0, true)
+	if err != nil {
+		log.Printf("Error getting CPU usage: %v", err)
+		return nil
+	}
+	metrics["CPU Usage"] = cpuPercentages
+
+	// Collect memory usage
+	memStats, err := mem.VirtualMemory()
+	if err != nil {
+		log.Printf("Error getting memory stats: %v", err)
+		return nil
+	}
+	metrics["Total Memory"] = float64(memStats.Total) / (1024 * 1024 * 1024)  // GB
+	metrics["Used Memory"] = float64(memStats.Used) / (1024 * 1024 * 1024)    // GB
+	metrics["Free Memory"] = float64(memStats.Free) / (1024 * 1024 * 1024)    // GB
+
+	// Collect disk usage
+	diskStats, err := disk.Usage("/")
+	if err != nil {
+		log.Printf("Error getting disk stats: %v", err)
+		return nil
+	}
+	metrics["Total Disk"] = float64(diskStats.Total) / (1024 * 1024 * 1024)  // GB
+	metrics["Used Disk"] = float64(diskStats.Used) / (1024 * 1024 * 1024)    // GB
+	metrics["Free Disk"] = float64(diskStats.Free) / (1024 * 1024 * 1024)    // GB
+
+	return metrics
+}
+
 func streamMetrics(objs EbpfObjects) {
 	ticker := time.NewTicker(2 * time.Second)
 	defer ticker.Stop()
 
 	for range ticker.C {
-		metrics := map[string]map[string]uint64{
+		// Collect system metrics
+		systemMetrics := collectSystemMetrics()
+
+		// Collect eBPF metrics
+		ebpfMetrics := map[string]map[string]uint64{
 			"HTTP Requests":     readMap(objs.HTTPReqMap),
 			"Outbound Traffic":  readMap(objs.OutboundTrafficMap),
 			"Bandwidth Usage":   readMap(objs.BandwidthMap),
@@ -155,7 +196,13 @@ func streamMetrics(objs EbpfObjects) {
 			"Jitter":            readMap(objs.JitterMap),
 		}
 
-		formattedData, err := json.MarshalIndent(metrics, "", "  ")
+		// Merge system metrics with eBPF metrics
+		fullMetrics := map[string]interface{}{
+			"System Metrics": systemMetrics,
+			"eBPF Metrics":   ebpfMetrics,
+		}
+
+		formattedData, err := json.MarshalIndent(fullMetrics, "", "  ")
 		if err != nil {
 			log.Printf("❌ Error formatting metrics: %v", err)
 			continue

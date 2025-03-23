@@ -38,7 +38,7 @@ int xdp_monitor(struct xdp_md *ctx) {
     struct iphdr *ip = (struct iphdr *)(eth + 1);
     if ((void *)(ip + 1) > data_end) return XDP_PASS;
 
-    __be32 src_ip = ip->saddr, dest_ip = ip->daddr;
+    __be32 src_ip = ip->saddr;
     __u64 pkt_size = data_end - data;
     __u64 one = 1;
     __u64 ts_now = bpf_ktime_get_ns();
