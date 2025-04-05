@@ -113,6 +113,7 @@ body.light-theme {
   gap: 1rem; /* Add spacing between cards */
   overflow-x: auto; /* Enable horizontal scrolling if needed */
   padding-bottom: 20px;
+  justify-content: center;
 }
 
 /* Individual card styling */

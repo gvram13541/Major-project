@@ -1,6 +1,6 @@
-import React from 'react'
+import React from 'react';
+import { Link } from 'react-router-dom';
 import {
-  CBadge,
   CSidebar,
   CSidebarBrand,
   CSidebarHeader,
@@ -9,13 +9,12 @@ import {
   CNavGroup,
   CNavItem,
   CNavTitle,
-} from '@coreui/react'
+} from '@coreui/react';
 
-import CIcon from '@coreui/icons-react'
-import { cilCloudDownload, cilLayers, cilPuzzle, cilSpeedometer } from '@coreui/icons'
-import '@coreui/coreui/dist/css/coreui.min.css'
-import 'bootstrap/dist/css/bootstrap.min.css'
-import './App.css'
+import CIcon from '@coreui/icons-react';
+import '@coreui/coreui/dist/css/coreui.min.css';
+import 'bootstrap/dist/css/bootstrap.min.css';
+import './App.css';
 
 const Sidebar = () => {
   return (
@@ -23,16 +22,25 @@ const Sidebar = () => {
       <CSidebarHeader className="border-bottom">
         <CSidebarBrand className="sidebar-brand">eBPF-Dashboard</CSidebarBrand>
       </CSidebarHeader>
-      
+
       <CSidebarNav>
         <CNavTitle>Key Dashboards</CNavTitle>
-        <CNavItem href="#">
-          <CIcon customClassName="nav-icon"  /> RTTA
+        <CNavItem>
+          <Link to="/" className="nav-link">
+            <CIcon customClassName="nav-icon" /> Home
+          </Link>
         </CNavItem>
-        <CNavItem href="#">
-          <CIcon customClassName="nav-icon" /> CRE
+        <CNavItem>
+          <Link to="/cpu-usage" className="nav-link">
+            <CIcon customClassName="nav-icon" /> CPU Usage
+          </Link>
         </CNavItem>
-      
+        <CNavItem>
+          <Link to="/traffic" className="nav-link">
+            <CIcon customClassName="nav-icon" /> Traffic
+          </Link>
+        </CNavItem>
+
         <CNavTitle>Centralized View</CNavTitle>
         <CNavGroup
           toggler={
@@ -41,17 +49,17 @@ const Sidebar = () => {
             </>
           }
         >
-          <CNavItem href="#">
-            <span className="nav-icon">
-              {/* <span className="nav-icon-bullet"></span> */}
-            </span>
-            CPU Usage
+          <CNavItem>
+            <Link to="/cpu-usage" className="nav-link">
+              <span className="nav-icon"></span>
+              CPU Usage
+            </Link>
           </CNavItem>
-          <CNavItem href="#">
-            <span className="nav-icon">
-              {/* <span className="nav-icon-bullet"></span> */}
-            </span>
-            Memory Usage
+          <CNavItem>
+            <Link to="/memory-usage" className="nav-link">
+              <span className="nav-icon"></span>
+              Memory Usage
+            </Link>
           </CNavItem>
         </CNavGroup>
 
@@ -63,16 +71,12 @@ const Sidebar = () => {
             </>
           }
         >
-          <CNavItem href="#">
-            <span className="nav-icon">
-              {/* <span className="nav-icon-bullet"></span> */}
-            </span>
+          <CNavItem>
+            <span className="nav-icon"></span>
             TimeSeries
           </CNavItem>
-          <CNavItem href="#">
-            <span className="nav-icon">
-              {/* <span className="nav-icon-bullet"></span> */}
-            </span>
+          <CNavItem>
+            <span className="nav-icon"></span>
             Gauge
           </CNavItem>
         </CNavGroup>
@@ -81,7 +85,7 @@ const Sidebar = () => {
           <CIcon customClassName="nav-icon" /> Alerts
         </CNavItem>
 
-        <CNavTitle>Log Acitvities</CNavTitle>
+        <CNavTitle>Log Activities</CNavTitle>
         <CNavItem href="https://coreui.io">
           <CIcon customClassName="nav-icon" /> SignIn
         </CNavItem>
@@ -93,9 +97,8 @@ const Sidebar = () => {
       <CSidebarHeader className="border-top">
         <CSidebarToggler />
       </CSidebarHeader>
-
     </CSidebar>
-  )
-}
+  );
+};
 
 export default Sidebar;
