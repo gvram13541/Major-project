@@ -1,0 +1,25 @@
+# Flask and related libraries
+Flask==2.3.2
+flask-cors==3.0.10
+
+# Prometheus client for exposing metrics
+prometheus-client==0.16.0
+
+# CoreUI React components
+@coreui/react==4.5.0
+@coreui/icons-react==2.0.1
+
+# React and React Router
+react==18.2.0
+react-dom==18.2.0
+react-router-dom==6.14.1
+
+# Material-UI for styling
+@mui/material==5.13.7
+
+# Bootstrap for additional styling
+bootstrap==5.3.0
+
+# Other dependencies
+random==1.0.1
+threading==1.0.0
