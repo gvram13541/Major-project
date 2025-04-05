@@ -41,6 +41,13 @@ type EbpfObjects struct {
 	DNSQueryMap        *ebpf.Map
 	LatencyMap         *ebpf.Map
 	JitterMap          *ebpf.Map
+	TCPStateMap        *ebpf.Map
+	DroppedMap         *ebpf.Map
+	FailedConnMap      *ebpf.Map
+	TopTalkersMap      *ebpf.Map
+	ProtocolTrafficMap *ebpf.Map
+	InterfaceStatsMap  *ebpf.Map
+	PerProcMap         *ebpf.Map
 }
 
 func main() {
@@ -70,6 +77,13 @@ func main() {
 		DNSQueryMap:        coll.Maps["dns_query_map"],
 		LatencyMap:         coll.Maps["latency_map"],
 		JitterMap:          coll.Maps["jitter_map"],
+		TCPStateMap:        coll.Maps["tcp_state_map"],
+		DroppedMap:         coll.Maps["dropped_map"],
+		FailedConnMap:      coll.Maps["failed_conn_map"],
+		TopTalkersMap:      coll.Maps["top_talkers_map"],
+		ProtocolTrafficMap: coll.Maps["protocol_traffic_map"],
+		InterfaceStatsMap:  coll.Maps["interface_stats_map"],
+		PerProcMap:         coll.Maps["per_process_map"],
 	}
 
 	iface, err := net.InterfaceByName(interfaceName)
@@ -103,7 +117,6 @@ func getFirstActiveInterface() (string, error) {
 	if err != nil {
 		return "", err
 	}
-
 	for _, iface := range ifs {
 		if iface.Flags&net.FlagUp != 0 && iface.Flags&net.FlagLoopback == 0 {
 			return iface.Name, nil
@@ -143,60 +156,29 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func collectSystemMetrics() map[string]interface{} {
-	metrics := make(map[string]interface{})
-
-	// Collect CPU usage
-	cpuPercentages, err := cpu.Percent(0, true)
-	if err != nil {
-		log.Printf("Error getting CPU usage: %v", err)
-		return nil
-	}
-	metrics["CPU Usage"] = cpuPercentages
-
-	// Collect memory usage
-	memStats, err := mem.VirtualMemory()
-	if err != nil {
-		log.Printf("Error getting memory stats: %v", err)
-		return nil
-	}
-	metrics["Total Memory"] = float64(memStats.Total) / (1024 * 1024 * 1024)  // GB
-	metrics["Used Memory"] = float64(memStats.Used) / (1024 * 1024 * 1024)    // GB
-	metrics["Free Memory"] = float64(memStats.Free) / (1024 * 1024 * 1024)    // GB
-
-	// Collect disk usage
-	diskStats, err := disk.Usage("/")
-	if err != nil {
-		log.Printf("Error getting disk stats: %v", err)
-		return nil
-	}
-	metrics["Total Disk"] = float64(diskStats.Total) / (1024 * 1024 * 1024)  // GB
-	metrics["Used Disk"] = float64(diskStats.Used) / (1024 * 1024 * 1024)    // GB
-	metrics["Free Disk"] = float64(diskStats.Free) / (1024 * 1024 * 1024)    // GB
-
-	return metrics
-}
-
 func streamMetrics(objs EbpfObjects) {
 	ticker := time.NewTicker(2 * time.Second)
 	defer ticker.Stop()
 
 	for range ticker.C {
-		// Collect system metrics
 		systemMetrics := collectSystemMetrics()
-
-		// Collect eBPF metrics
 		ebpfMetrics := map[string]map[string]uint64{
-			"HTTP Requests":     readMap(objs.HTTPReqMap),
-			"Outbound Traffic":  readMap(objs.OutboundTrafficMap),
-			"Bandwidth Usage":   readMap(objs.BandwidthMap),
-			"Firewall Rules":    readMap(objs.FirewallMap),
-			"DNS Queries":       readMap(objs.DNSQueryMap),
-			"Latency":           readMap(objs.LatencyMap),
-			"Jitter":            readMap(objs.JitterMap),
+			"HTTP Requests":        readMap(objs.HTTPReqMap),
+			"Outbound Traffic":     readMap(objs.OutboundTrafficMap),
+			"Bandwidth Usage":      readMap(objs.BandwidthMap),
+			"Firewall Rules":       readMap(objs.FirewallMap),
+			"DNS Queries":          readMap(objs.DNSQueryMap),
+			"Latency":              readMap(objs.LatencyMap),
+			"Jitter":               readMap(objs.JitterMap),
+			"TCP State Transitions": readMap(objs.TCPStateMap),
+			"Dropped Packets":      readMap(objs.DroppedMap),
+			"Failed Connections":   readMap(objs.FailedConnMap),
+			"Top Talkers":          readMap(objs.TopTalkersMap),
+			"Protocol Traffic":     readMap(objs.ProtocolTrafficMap),
+			"Interface Stats":      readMap(objs.InterfaceStatsMap),
+			"Per Process Traffic":  readMap(objs.PerProcMap),
 		}
 
-		// Merge system metrics with eBPF metrics
 		fullMetrics := map[string]interface{}{
 			"System Metrics": systemMetrics,
 			"eBPF Metrics":   ebpfMetrics,
@@ -213,17 +195,72 @@ func streamMetrics(objs EbpfObjects) {
 	}
 }
 
+func collectSystemMetrics() map[string]interface{} {
+	metrics := make(map[string]interface{})
+
+	cpuPercentages, err := cpu.Percent(0, true)
+	if err != nil {
+		log.Printf("Error getting CPU usage: %v", err)
+		return nil
+	}
+	metrics["CPU Usage"] = cpuPercentages
+
+	memStats, err := mem.VirtualMemory()
+	if err != nil {
+		log.Printf("Error getting memory stats: %v", err)
+		return nil
+	}
+	metrics["Total Memory (GB)"] = float64(memStats.Total) / (1024 * 1024 * 1024)
+	metrics["Used Memory (GB)"] = float64(memStats.Used) / (1024 * 1024 * 1024)
+	metrics["Free Memory (GB)"] = float64(memStats.Free) / (1024 * 1024 * 1024)
+
+	diskStats, err := disk.Usage("/")
+	if err != nil {
+		log.Printf("Error getting disk stats: %v", err)
+		return nil
+	}
+	metrics["Total Disk (GB)"] = float64(diskStats.Total) / (1024 * 1024 * 1024)
+	metrics["Used Disk (GB)"] = float64(diskStats.Used) / (1024 * 1024 * 1024)
+	metrics["Free Disk (GB)"] = float64(diskStats.Free) / (1024 * 1024 * 1024)
+
+	return metrics
+}
+
 func readMap(m *ebpf.Map) map[string]uint64 {
 	result := make(map[string]uint64)
-	iter := m.Iterate()
-	var key uint32
-	var value uint64
 
-	for iter.Next(&key, &value) {
-		result[fmt.Sprintf("%d", key)] = value
+	if m == nil {
+		return result
 	}
+
+	switch m.KeySize() {
+	case 4:
+		var key uint32
+		var value uint64
+		iter := m.Iterate()
+		for iter.Next(&key, &value) {
+			result[fmt.Sprintf("%d", key)] = value
+		}
+	case 16:
+		var key [16]byte
+		var value uint64
+		iter := m.Iterate()
+		for iter.Next(&key, &value) {
+			ip := net.IP(key[:]).String()
+			result[ip] = value
+		}
+	default:
+		var key [64]byte
+		var value uint64
+		iter := m.Iterate()
+		for iter.Next(&key, &value) {
+			result[string(key[:])] = value
+		}
+	}
+
 	return result
 }
+
 
 func broadcastMetrics(data []byte) {
 	wsMutex.Lock()
