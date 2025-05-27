@@ -29,28 +29,26 @@ const WidgetsDropdown = (props) => {
   useEffect(() => {
     const fetchMetrics = async () => {
       try {
-        const response = await fetch('http://localhost:8000/metrics')
-        const text = await response.text()
-
-        // Parse the metrics data
-        const cpuUsageMatch = text.match(/cpu_usage\s+([\d.]+)/)
-        const memoryUsageMatch = text.match(/memory_usage\s+([\d.]+)/)
-        const packetsSentMatch = text.match(/total_packets_sent\s+([\d.]+)/)
-        const packetsReceivedMatch = text.match(/total_packets_received\s+([\d.]+)/)
-
+        const response = await fetch('http://localhost:8000/widget-metrics')
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`)
+        }
+        const data = await response.json()
+  
+        // Update the metrics state with the fetched data
         setMetrics({
-          cpuUsage: cpuUsageMatch ? parseFloat(cpuUsageMatch[1]).toFixed(2) : 0,
-          memoryUsage: memoryUsageMatch ? parseFloat(memoryUsageMatch[1]).toFixed(2) : 0,
-          packetsSent: packetsSentMatch ? parseFloat(packetsSentMatch[1]).toFixed(0) : 0,
-          packetsReceived: packetsReceivedMatch ? parseFloat(packetsReceivedMatch[1]).toFixed(0) : 0,
+          cpuUsage: data.cpuUsage || 0,
+          memoryUsage: data.memoryUsage || 0,
+          packetsSent: data.packetsSent || 0,
+          packetsReceived: data.packetsReceived || 0,
         })
       } catch (error) {
         console.error('Error fetching metrics:', error)
       }
     }
-
+  
     fetchMetrics()
-
+  
     // Poll the metrics every 5 seconds
     const interval = setInterval(fetchMetrics, 5000)
     return () => clearInterval(interval)

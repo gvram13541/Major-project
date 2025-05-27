@@ -23,7 +23,7 @@ const AllSystems = () => {
   useEffect(() => {
     const fetchSystems = async () => {
       try {
-        const response = await fetch('http://localhost:8000/applications') // Replace with your backend URL
+        const response = await fetch('http://localhost:8000/systems-monitoring') // Replace with your backend URL
         const data = await response.json()
         setSystems(data) // Update state with fetched data
       } catch (error) {
@@ -101,9 +101,9 @@ const AllSystems = () => {
                     <CButton
                       color="success"
                       size="sm"
-                      onClick={() => navigate(`/system/${system.systemId}/monitor`)}
+                      onClick={() => navigate(`/system/${system.systemId}/chrome-tabs`)}
                     >
-                      Monitor Metrics
+                      Chorme Tabs
                     </CButton>
                     <CButton
                       color="secondary"

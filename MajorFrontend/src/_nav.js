@@ -11,7 +11,7 @@ const _nav = [
   {
     component: CNavItem,
     name: 'Home Page',
-    to: '/dashboard',
+    to: '/grafana/MetricCard/dashboard',
     icon: <CIcon icon={cilHome} customClassName="nav-icon"/>,
     badge: {
       color: 'info',
@@ -26,27 +26,27 @@ const _nav = [
   {
     component: CNavItem,
     name: 'Packet Rate (pps)',
-    to: '/theme/colors',
+    to: '/grafana/MetricCard/packetRate',
   },
   {
     component: CNavItem,
     name: 'Bandwidth Usage (bps)',
-    to: '/theme/typography',
+    to: '/grafana/MetricCard/bandwith',
   },
   {
     component: CNavItem,
     name: 'Protocol Distribution',
-    to: '/theme/colors',
+    to: '/grafana/MetricCard/protocoldistribution',
   },
   {
     component: CNavItem,
     name: 'Flow Duration & Size',
-    to: '/theme/typography',
+    to: '/grafana/MetricCard/latency',
   },
   {
     component: CNavItem,
-    name: 'Top Talkers & Connections',
-    to: '/theme/typography',
+    name: 'Top Talkers',
+    to: '/grafana/MetricCard/toptalkers',
   },
   {
     component: CNavTitle,
@@ -55,51 +55,12 @@ const _nav = [
   {
     component: CNavItem,
     name: 'Dropped Packets Count',
-    to: '/theme/colors',
-  },
-  {
-    component: CNavItem,
-    name: 'Malicious Traffic Detection',
-    to: '/theme/typography',
-  },
-  {
-    component: CNavItem,
-    name: 'Port Scanning Attempts',
-    to: '/theme/colors',
+    to: '/grafana/MetricCard/packetDropRate',
   },
   {
     component: CNavItem,
     name: 'DDoS Indicators',
-    to: '/theme/typography',
-  },
-  {
-    component: CNavItem,
-    name: 'Suspicious IPs & Anomalies',
-    to: '/theme/typography',
-  },
-  {
-    component: CNavTitle,
-    name: 'Rule Enforcement & Policy Metrics',
-  },
-  {
-    component: CNavItem,
-    name: 'IPTable Rule Hit Count',
-    to: '/theme/colors',
-  },
-  {
-    component: CNavItem,
-    name: 'Latency of Rule Processing',
-    to: '/theme/typography',
-  },
-  {
-    component: CNavItem,
-    name: 'Rule Update Frequency',
-    to: '/theme/colors',
-  },
-  {
-    component: CNavItem,
-    name: 'Centralized Rule Synchronization',
-    to: '/theme/typography',
+    to: '/grafana/MetricCard/ddos-indicators',
   },
   {
     component: CNavTitle,
@@ -118,12 +79,12 @@ const _nav = [
   {
     component: CNavItem,
     name: 'Disk I/O & Logs Storage',
-    to: '/theme/colors',
+    to: '/grafana/MetricCard/diskiolog',
   },
   {
     component: CNavItem,
     name: 'Kernel Load & Performance',
-    to: '/theme/typography',
+    to: '/grafana/MetricCard/kernelload',
   },
   {
     component: CNavTitle,
@@ -132,22 +93,7 @@ const _nav = [
   {
     component: CNavItem,
     name: 'Latency per Flow',
-    to: '/theme/colors',
-  },
-  {
-    component: CNavItem,
-    name: 'Packet Drop Reasons',
-    to: '/theme/typography',
-  },
-  {
-    component: CNavItem,
-    name: 'Geolocation of Traffic',
-    to: '/theme/colors',
-  },
-  {
-    component: CNavItem,
-    name: 'Service Mesh & Application-Level Metrics',
-    to: '/theme/typography',
+    to: '/grafana/MetricCard/latency',
   },
   {
     component: CNavItem,

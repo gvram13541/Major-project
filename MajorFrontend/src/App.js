@@ -9,6 +9,10 @@ import './scss/style.scss'
 import './scss/examples.scss'
 import SystemDetails from './views/dashboard/SystemDetails'
 import AllSystems from './views/dashboard/AllSystems'
+import ChromeTabs from './views/dashboard/ChromeTabs'
+import MonitoringAlerts from './views/notifications/MonitoringAlerts'
+import Settings from './views/pages/settings/Settings'
+import Mail from "./views/pages/mail/mail";
 
 // Containers
 const DefaultLayout = React.lazy(() => import('./layout/DefaultLayout'))
@@ -19,7 +23,7 @@ const Register = React.lazy(() => import('./views/pages/register/Register'))
 const Page404 = React.lazy(() => import('./views/pages/page404/Page404'))
 const Page500 = React.lazy(() => import('./views/pages/page500/Page500'))
 const Logout = React.lazy(() => import('./views/pages/logout/Logout'))
-import Settings from './views/pages/settings/Settings'
+
 
 // Private Route Component
 const PrivateRoute = ({ children }) => {
@@ -60,9 +64,12 @@ const App = () => {
       <Route exact path="/logout" name="Logout Page" element={<Logout />} />
       <Route exact path="/404" name="Page 404" element={<Page404 />} />
       <Route exact path="/500" name="Page 500" element={<Page500 />} />
-      <Route exact path="/system/:systemId" name="System Details" element={<SystemDetails />} />
       <Route exact path="/all-systems" name="All Systems" element={<AllSystems />} />
+      <Route exact path="/system/:systemId" name="System Details" element={<SystemDetails />} />
       <Route exact path="/settings" name="Settings" element={<Settings />} />
+      <Route path="/system/:systemId/chrome-tabs" element={<ChromeTabs />} />
+      <Route path="/system/:systemId/alerts" element={<MonitoringAlerts />} />
+      <Route path="/mail" name="Mail" element={<Mail />} />
       <Route
         path="*"
         name="Home"

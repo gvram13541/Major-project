@@ -74,11 +74,11 @@ const SystemDetails = () => {
               <CTableBody>
                 {processes.map((process, index) => (
                   <CTableRow key={index}>
-                    <CTableDataCell>{process.pid}</CTableDataCell>
-                    <CTableDataCell>{process.name}</CTableDataCell>
-                    <CTableDataCell>{process.username}</CTableDataCell>
-                    <CTableDataCell>{process.cpu_percent}</CTableDataCell>
-                    <CTableDataCell>{process.memory_percent?.toFixed(2)}</CTableDataCell>
+                    <CTableDataCell>{process.PID}</CTableDataCell>
+                    <CTableDataCell>{process.Name}</CTableDataCell>
+                    <CTableDataCell>{process.User}</CTableDataCell>
+                    <CTableDataCell>{process["CPU (%)"]}</CTableDataCell>
+                    <CTableDataCell>{process["Memory (%)"]?.toFixed(2)}</CTableDataCell>
                   </CTableRow>
                 ))}
               </CTableBody>
@@ -97,8 +97,8 @@ const SystemDetails = () => {
               <CTableBody>
                 {processes.flatMap((process) =>
                   process.connections?.map((conn, index) => (
-                    <CTableRow key={`${process.pid}-conn-${index}`}>
-                      <CTableDataCell>{process.pid}</CTableDataCell>
+                    <CTableRow key={`${process.PID}-conn-${index}`}>
+                      <CTableDataCell>{process.PID}</CTableDataCell>
                       <CTableDataCell>
                         {conn.laddr ? `${conn.laddr.ip}:${conn.laddr.port}` : 'N/A'}
                       </CTableDataCell>
@@ -122,16 +122,16 @@ const SystemDetails = () => {
                 </CTableRow>
               </CTableHead>
               <CTableBody>
-                {processes.flatMap((process) =>
-                  process.open_files?.map((file, index) => (
-                    <CTableRow key={`${process.pid}-file-${index}`}>
-                      <CTableDataCell>{process.pid}</CTableDataCell>
-                      <CTableDataCell>{file.path}</CTableDataCell>
-                      <CTableDataCell>{file.fd}</CTableDataCell>
-                    </CTableRow>
-                  ))
-                )}
-              </CTableBody>
+  {processes.flatMap((process) =>
+    process.open_files?.map((file, index) => (
+      <CTableRow key={`${process.PID}-file-${index}`}>
+        <CTableDataCell>{process.PID}</CTableDataCell>
+        <CTableDataCell>{file.path}</CTableDataCell>
+        <CTableDataCell>{file.fd}</CTableDataCell>
+      </CTableRow>
+    ))
+  )}
+</CTableBody>
             </CTable>
 
             <div className="d-flex justify-content-between align-items-center mt-3">
