@@ -1,105 +1,75 @@
 #!/bin/bash
 
-set -e  # Exit on error
+set -e
 
-echo "Starting eBPF + Go environment setup..."
+echo "🔧 Setting up Python virtualenv with Go installed inside..."
 
-# Step 1: Install system dependencies
-echo "Updating system and installing dependencies..."
+### Step 1: Install system packages
+echo "📦 Installing required system dependencies..."
 sudo apt update && sudo apt install -y \
-    clang \
-    llvm \
-    libelf-dev \
-    libbpf-dev \
-    iproute2 \
-    iputils-ping \
-    net-tools \
-    make \
-    gcc \
-    git \
-    linux-tools-common \
-    linux-tools-generic \
-    linux-tools-$(uname -r) \
-    wget \
-    docker.io
+  clang \
+  llvm \
+  libelf-dev \
+  libbpf-dev \
+  iproute2 \
+  iputils-ping \
+  net-tools \
+  make \
+  gcc \
+  git \
+  linux-tools-common \
+  linux-tools-generic \
+  linux-tools-$(uname -r) \
+  wget \
+  python3-venv \
+  python3-pip
 
-# Step 2: Ensure bpftool is available
+### Step 2: Fix bpftool if needed
 if ! command -v bpftool &> /dev/null; then
-    echo "bpftool not found! Creating symlink..."
-    sudo ln -s /usr/lib/linux-tools-$(uname -r)/bpftool /usr/bin/bpftool
+  echo "🔗 Linking bpftool..."
+  sudo ln -s /usr/lib/linux-tools-$(uname -r)/bpftool /usr/bin/bpftool
 fi
 
-# Step 3: Install Go (if not installed)
+### Step 3: Create and activate Python venv
+echo "🐍 Creating virtualenv: ebpf-go-env..."
+python3 -m venv ebpf-go-env
+source ebpf-go-env/bin/activate
+
+### Step 4: Install Python packages
+echo "📦 Installing Python eBPF packages..."
+pip install --upgrade pip
+pip install bcc pyroute2
+
+### Step 5: Download and install Go inside venv
 GO_VERSION="1.22.2"
 GO_TAR="go$GO_VERSION.linux-amd64.tar.gz"
 GO_URL="https://go.dev/dl/$GO_TAR"
+GO_ROOT="$(pwd)/ebpf-go-env/go"
+GOPATH="$(pwd)/ebpf-go-env/gopath"
 
-if ! command -v go &> /dev/null; then
-    echo "Installing Go $GO_VERSION..."
-    wget $GO_URL
-    sudo rm -rf /usr/local/go
-    sudo tar -C /usr/local -xzf $GO_TAR
-    rm $GO_TAR
-    echo 'export PATH=$PATH:/usr/local/go/bin' >> ~/.bashrc
-    source ~/.bashrc
-fi
+echo "⬇️ Downloading Go $GO_VERSION..."
+wget -q $GO_URL
+tar -C ebpf-go-env -xzf $GO_TAR
+rm $GO_TAR
 
-# Step 4: Ensure Docker is running
-echo "Checking Docker status..."
-if ! systemctl is-active --quiet docker; then
-    echo "Starting Docker..."
-    sudo systemctl start docker
-fi
+# Export now
+export GOROOT=$GO_ROOT
+export GOPATH=$GOPATH
+export PATH=$GOROOT/bin:$GOPATH/bin:$PATH
 
-# Step 5: Add user to Docker group (optional, avoids sudo for Docker)
-if ! groups | grep -q "\bdocker\b"; then
-    echo "Adding user to Docker group..."
-    sudo usermod -aG docker $USER
-    echo "Please log out and log back in for changes to take effect."
-fi
+# Add to venv activate script
+ACTIVATE_SCRIPT="$(pwd)/ebpf-go-env/bin/activate"
+echo "" >> $ACTIVATE_SCRIPT
+echo "# Go environment" >> $ACTIVATE_SCRIPT
+echo "export GOROOT=$GO_ROOT" >> $ACTIVATE_SCRIPT
+echo "export GOPATH=$GOPATH" >> $ACTIVATE_SCRIPT
+echo "export PATH=\$GOROOT/bin:\$GOPATH/bin:\$PATH" >> $ACTIVATE_SCRIPT
 
-# Step 6: Create Dockerfile
-echo "Creating Dockerfile..."
-cat <<EOF > Dockerfile
-FROM ubuntu:latest
-
-ENV DEBIAN_FRONTEND=noninteractive
-
-RUN apt update && apt install -y \
-    clang \
-    llvm \
-    libelf-dev \
-    libbpf-dev \
-    iproute2 \
-    iputils-ping \
-    net-tools \
-    make \
-    gcc \
-    git \
-    linux-tools-common \
-    linux-tools-generic \
-    linux-tools-\$(uname -r) \
-    wget && \
-    ln -s /usr/lib/linux-tools-\$(uname -r)/bpftool /usr/bin/bpftool
-
-# Install Go
-ENV GO_VERSION=$GO_VERSION
-ENV GOPATH=/go
-ENV PATH=\$PATH:/usr/local/go/bin:\$GOPATH/bin
-
-RUN wget https://go.dev/dl/go\$GO_VERSION.linux-amd64.tar.gz && \
-    tar -C /usr/local -xzf go\$GO_VERSION.linux-amd64.tar.gz && \
-    rm go\$GO_VERSION.linux-amd64.tar.gz && \
-    mkdir -p \$GOPATH/src \$GOPATH/bin \$GOPATH/pkg
-
-WORKDIR /ebpf
-EOF
-
-# Step 7: Build the Docker image
-echo "Building Docker image..."
-sudo docker build -t ebpf-go-env .
-
-# Step 8: Run the Docker container
-echo "Starting eBPF + Go environment..."
-sudo docker run -it --privileged --rm --name ebpf-go-container ebpf-go-env /bin/bash
+### Step 6: Done
+echo ""
+echo "✅ Setup complete!"
+echo "➡️ To use this environment:"
+echo "   source ebpf-go-env/bin/activate"
+echo "   go version"
+echo "   go run main.go (in any folder you want)"
 
