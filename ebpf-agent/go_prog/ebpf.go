@@ -28,7 +28,7 @@ import (
 const (
 	progPath          = "ebpf.o"
 	// Change this to your local server if testing locally
-	 serverURL	= "wss://393c-49-204-87-250.ngrok-free.app/ws"
+	 serverURL	= "wss://5498-49-204-87-250.ngrok-free.app/ws"
 	//serverURL         = "wss://after-pine-sapphire-modems.trycloudflare.com/ws"
 	// OR keep the ngrok URL if you're accessing a remote server
 	//serverURL        = "wss://b22f-152-58-230-101.ngrok-free.app/socket.io/?EIO=4&transport=websocket"
@@ -517,12 +517,14 @@ func extractValue(event, key string) string {
 // sendUSBAlert sends an alert to the WebSocket when a USB device is inserted
 func sendUSBAlert(wsConn *websocket.Conn) {
 	agentID := getMACAddress()
+	ipAddress := getLocalIP()
+
 	alert := map[string]interface{}{
 		"agent_id": agentID,
 		"event":    "alert",
 		"data": map[string]interface{}{
 			"alert_type": "usb_insertion",
-			"message":    "USB device inserted...",
+			"message":    fmt.Sprintf("USB device inserted on system with IP %s", ipAddress),
 			"timestamp":  time.Now().Format(time.RFC3339),
 		},
 	}
@@ -534,4 +536,20 @@ func sendUSBAlert(wsConn *websocket.Conn) {
 		fmt.Println("🚨 USB Alert sent")
 	}
 }
+
+func getLocalIP() string {
+	addrs, err := net.InterfaceAddrs()
+	if err != nil {
+		return "unknown"
+	}
+	for _, addr := range addrs {
+		if ipNet, ok := addr.(*net.IPNet); ok && !ipNet.IP.IsLoopback() {
+			if ip4 := ipNet.IP.To4(); ip4 != nil {
+				return ip4.String()
+			}
+		}
+	}
+	return "unknown"
+}
+
 
