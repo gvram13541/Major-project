@@ -31,18 +31,18 @@ const _nav = [
   {
     component: CNavItem,
     name: 'Bandwidth Usage (bps)',
-    to: '/grafana/MetricCard/bandwith',
+    to: '/grafana/MetricCard/bandwidth',
   },
   {
     component: CNavItem,
     name: 'Protocol Distribution',
     to: '/grafana/MetricCard/protocoldistribution',
   },
-  {
-    component: CNavItem,
-    name: 'Flow Duration & Size',
-    to: '/grafana/MetricCard/latency',
-  },
+  // {
+  //   component: CNavItem,
+  //   name: 'Flow Duration & Size',
+  //   to: '/grafana/MetricCard/latency',
+  // },
   {
     component: CNavItem,
     name: 'Top Talkers',

@@ -12,11 +12,11 @@ const metrics = {
   },
   memory: {
     name: "Memory Usage",
-    url: "http://localhost:3000/d-solo/aek1quja2603ka/memory-usage?orgId=1&from=1747364906296&to=1747386506296&timezone=browser&refresh=5s&panelId=1&__feature.dashboardSceneSolo",
+    url: "http://localhost:3000/d-solo/aek1quja2603ka/memory-usage?orgId=1&from=1748996287167&to=1749017887167&timezone=browser&refresh=5s&panelId=1&__feature.dashboardSceneSolo",
   },
   packetRate: {
     name: "Packet Rate",
-    url: "http://localhost:3000/d-solo/04e90790-6a10-40ac-9d98-76a5fe3e0688/packetrate?orgId=1&from=1747365109342&to=1747386709342&timezone=browser&refresh=5s&panelId=1&__feature.dashboardSceneSolo",
+    url: "http://localhost:3000/d-solo/04e90790-6a10-40ac-9d98-76a5fe3e0688/packetrate?orgId=1&from=1748995626457&to=1749017226457&timezone=browser&refresh=5s&panelId=1&__feature.dashboardSceneSolo",
   },
   PacketDropRate: {
     name: "Dropped Packets",
@@ -26,9 +26,9 @@ const metrics = {
     name: "Latency",
     url: "http://localhost:3000/d-solo/fek1pnvrpp62oe/latency?orgId=1&from=1747365952438&to=1747387552438&timezone=browser&refresh=5s&panelId=1&__feature.dashboardSceneSolo",
   },
-bandwith: {
+bandwidth: {
     name: "Bandwidth",
-    url: "http://localhost:3000/d-solo/fek1od4ns84cgf/bandwidth-usage?orgId=1&from=1747365155124&to=1747386755124&timezone=browser&refresh=5s&panelId=1&__feature.dashboardSceneSolo",
+    url: "http://localhost:3000/d-solo/fek1od4ns84cgf/bandwidth-usage?orgId=1&from=1748995316551&to=1749016916551&timezone=browser&refresh=5s&panelId=1&__feature.dashboardSceneSolo",
   },
   packetDropRate: {
     name: "Packet Drop Rate",
@@ -36,7 +36,7 @@ bandwith: {
   },
   protocoldistribution: {
     name: "Protocol Distribution",
-    url: "http://localhost:3000/d-solo/eek1p9swlxlhcd/protocolo-dis?orgId=1&from=1747365191788&to=1747386791788&timezone=browser&panelId=1&__feature.dashboardSceneSolo",
+    url: "http://localhost:3000/d-solo/eek1p9swlxlhcd/protocolo-dis?orgId=1&from=1748995698586&to=1749017298586&timezone=browser&panelId=1&__feature.dashboardSceneSolo",
   },
   malicioustraffic: {
     name: "Malicious Traffic",
@@ -52,7 +52,7 @@ bandwith: {
   },
   diskiolog: {
     name: "Disk I/O Log",
-    url: "http://localhost:3000/d-solo/aek1sws4xrh1cd/disk?orgId=1&from=1747364948987&to=1747386548987&timezone=browser&refresh=5s&panelId=1&__feature.dashboardSceneSolo",
+    url: "http://localhost:3000/d-solo/aek1sws4xrh1cd/disk?orgId=1&from=1748996519056&to=1749018119056&timezone=browser&refresh=5s&panelId=1&__feature.dashboardSceneSolo",
   networkPacketDropRate: {
     name: "Network Packet Drop Rate",
     url: "http://localhost:3000/d-solo/fek1pqf0eof0gf/outboound-traffic?orgId=1&from=1745623653879&to=1745645253879&timezone=browser&panelId=1&__feature.dashboardSceneSolo",
@@ -75,7 +75,7 @@ bandwith: {
   },
   toptalkers: {
     name: "Top Talkers",
-    url: "http://localhost:3000/d-solo/39ff070c-543c-4f8d-8961-c97ec79a89b7/top-talkers?orgId=1&from=1747365321112&to=1747386921112&timezone=browser&panelId=1&__feature.dashboardSceneSolo",
+    url: "http://localhost:3000/d-solo/39ff070c-543c-4f8d-8961-c97ec79a89b7/top-talkers?orgId=1&from=1748995759628&to=1749017359628&timezone=browser&panelId=1&__feature.dashboardSceneSolo",
   },
   // Add more metrics as needed
 }};
@@ -83,6 +83,7 @@ bandwith: {
 const MetricCard = () => {
   const { metricKey } = useParams(); 
   const metric = metrics[metricKey]; 
+  console.log(metrics);
 
   if (!metric) {
     return <div>Metric not found</div>; 

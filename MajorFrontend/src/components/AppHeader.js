@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react'
-import { NavLink } from 'react-router-dom'
+import { useNotifications } from '../views/notifications/NotificationContext'
+import { useNavigate, NavLink } from 'react-router-dom'
 import { useSelector, useDispatch } from 'react-redux'
 import {
   CContainer,
@@ -20,6 +21,7 @@ import {
   cilContrast,
   cilEnvelopeOpen,
   cilList,
+  cilCloudDownload,
   cilMenu,
   cilMoon,
   cilSun,
@@ -31,6 +33,8 @@ import { AppHeaderDropdown } from './header/index'
 const AppHeader = () => {
   const headerRef = useRef()
   const { colorMode, setColorMode } = useColorModes('coreui-free-react-admin-template-theme')
+  const { hasNew, clearNew } = useNotifications()
+  const navigate = useNavigate()
 
   const dispatch = useDispatch()
   const sidebarShow = useSelector((state) => state.sidebarShow)
@@ -69,16 +73,68 @@ const AppHeader = () => {
       </CNavItem>
         </CHeaderNav>
         <CHeaderNav className="ms-auto">
-          <CNavItem>
-            <CNavLink href="#">
-              <CIcon icon={cilBell} size="lg" />
-            </CNavLink>
-          </CNavItem>
-          <CNavItem>
-            <CNavLink href="#">
-              <CIcon icon={cilList} size="lg" />
-            </CNavLink>
-          </CNavItem>
+      <CNavItem>
+        <CNavLink
+          style={{ position: "relative" }}
+          onClick={() => {
+            clearNew();
+            navigate("/notifications");
+          }}
+          role="button"
+        >
+          <CIcon icon={cilBell} size="lg" />
+          {hasNew && (
+            <span
+              style={{
+                position: "absolute",
+                top: 2,
+                right: 2,
+                background: "red",
+                borderRadius: "50%",
+                width: 10,
+                height: 10,
+                display: "inline-block",
+              }}
+            />
+          )}
+        </CNavLink>
+      </CNavItem>
+<CNavItem>
+  <CNavLink
+    href="#"
+    onClick={async (e) => {
+      e.preventDefault();
+      try {
+        const response = await fetch('http://localhost:8000/download-agent-data', {
+          method: 'GET',
+          credentials: 'include',
+        });
+        if (response.ok) {
+          const disposition = response.headers.get('Content-Disposition');
+          let filename = 'agent_data.xlsx';
+          if (disposition && disposition.indexOf('filename=') !== -1) {
+            filename = disposition.split('filename=')[1].replace(/"/g, '');
+          }
+          const blob = await response.blob();
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = filename;
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          window.URL.revokeObjectURL(url);
+        } else {
+          alert("Failed to download agent data.");
+        }
+      } catch (err) {
+        alert("Error downloading agent data.");
+      }
+    }}
+  >
+    <CIcon icon={cilCloudDownload} size="lg" />
+  </CNavLink>
+</CNavItem>
           <CNavItem>
             <CNavLink to="/mail" as={NavLink}>
               <CIcon icon={cilEnvelopeOpen} size="lg" />

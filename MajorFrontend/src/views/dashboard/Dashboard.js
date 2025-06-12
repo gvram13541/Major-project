@@ -26,8 +26,8 @@ import MainChart from './MainChart'
 
 const Dashboard = () => {
   const [metrics, setMetrics] = useState({
-    packetRate: 0,
-    droppedPackets: 0,
+    outboundTraffic: 0,
+    bandwidthUsage: 0,
     cpuUtilization: 0,
     memoryUsage: 0,
     latency: 0,
@@ -44,8 +44,8 @@ const Dashboard = () => {
         console.log('Fetched dashboard metrics:', data) // Debugging log
   
         setMetrics({
-          packetRate: data.packetRate || 0,
-          droppedPackets: data.droppedPackets || 0,
+          outboundTraffic: data.outboundTraffic || 0,
+          bandwidthUsage: data.bandwidthUsage || 0,
           cpuUtilization: data.cpuUtilization || 0,
           memoryUsage: data.memoryUsage || 0,
           latency: data.latency || 0,
@@ -101,8 +101,8 @@ const Dashboard = () => {
     }, [])
 
   const progressExample = [
-    { title: 'Packet Rate (pps)', value: `${metrics.packetRate} pps`, percent: metrics.packetRate, color: 'success' },
-    { title: 'Dropped Packets (%)', value: `${metrics.droppedPackets}%`, percent: metrics.droppedPackets, color: 'danger' },
+    { title: 'OutBound Traffic', value: `${metrics.outboundTraffic}`, percent: metrics.outboundTraffic, color: 'success' },
+    { title: 'Bandwidth Usage (%)', value: `${metrics.bandwidthUsage}%`, percent: metrics.bandwidthUsage, color: 'danger' },
     { title: 'CPU Utilization (%)', value: `${metrics.cpuUtilization}%`, percent: metrics.cpuUtilization, color: 'info' },
     { title: 'Memory Usage (%)', value: `${metrics.memoryUsage}%`, percent: metrics.memoryUsage, color: 'warning' },
     { title: 'Latency (ms)', value: `${metrics.latency} ms`, percent: metrics.latency, color: 'primary' },

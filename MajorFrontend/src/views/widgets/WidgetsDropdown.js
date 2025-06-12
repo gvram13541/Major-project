@@ -19,8 +19,8 @@ const WidgetsDropdown = (props) => {
   const [metrics, setMetrics] = useState({
     cpuUsage: 0,
     memoryUsage: 0,
-    packetsSent: 0,
-    packetsReceived: 0,
+    bandwidthUsage: 0,
+    latency: 0,
   })
 
   const widgetChartRef1 = useRef(null)
@@ -39,8 +39,8 @@ const WidgetsDropdown = (props) => {
         setMetrics({
           cpuUsage: data.cpuUsage || 0,
           memoryUsage: data.memoryUsage || 0,
-          packetsSent: data.packetsSent || 0,
-          packetsReceived: data.packetsReceived || 0,
+          bandwidthUsage: data.bandwidthUsage || 0,
+          latency: data.latency || 0,
         })
       } catch (error) {
         console.error('Error fetching metrics:', error)
@@ -263,13 +263,13 @@ const WidgetsDropdown = (props) => {
           color="danger"
           value={
             <>
-              {metrics.packetsSent}{' '}
+              {metrics.bandwidthUsage}{' '}
               <span className="fs-6 fw-normal">
                 (84.7% <CIcon icon={cilArrowTop} />)
               </span>
             </>
           }
-          title="Packets Sent"
+          title="Bandwidth Usage"
           action={
             <CDropdown alignment="end">
               <CDropdownToggle color="transparent" caret={false} className="text-white p-0">
@@ -337,13 +337,13 @@ const WidgetsDropdown = (props) => {
           color="warning"
           value={
             <>
-              {metrics.packetsReceived}{' '}
+              {metrics.latency}{' '}
               <span className="fs-6 fw-normal">
                 (84.7% <CIcon icon={cilArrowTop} />)
               </span>
             </>
           }
-          title="Packets Received"
+          title="Latency"
           action={
             <CDropdown alignment="end">
               <CDropdownToggle color="transparent" caret={false} className="text-white p-0">

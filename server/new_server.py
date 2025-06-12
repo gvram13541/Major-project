@@ -1,4 +1,4 @@
-from flask import Flask, Response, jsonify, request
+from flask import Flask, Response, jsonify, request, send_file
 from flask_sock import Sock
 from flask_cors import CORS
 from prometheus_client import Gauge, generate_latest, CONTENT_TYPE_LATEST
@@ -9,19 +9,31 @@ import imaplib
 import email
 from email.header import decode_header
 from email.utils import parseaddr
+import pandas as pd
+from datetime import datetime
+import io
+import json
+
+# Reasonable maximums for normalization
+MAX_OUTBOUND_TRAFFIC = 1_000_000      # packets/sec
+MAX_BANDWIDTH_USAGE = 125_000_000     # bytes/sec (1 Gbps)
+MAX_LATENCY = 500_000                 # microseconds (500 ms)
 
 app = Flask(__name__)
-CORS(app)
+CORS(app, supports_credentials=True, origins=["http://localhost:3001", "http://localhost:8080", "http://localhost:8000"])
 sock = Sock(app)
 
 # Configure your SMTP server details here
 SMTP_SERVER = 'smtp.gmail.com'
 SMTP_PORT = 587
 SMTP_USER = 'gunavardhan240@gmail.com'      # Replace with your email
-SMTP_PASSWORD = 'skip zkps xxvn mmez'   
+SMTP_PASSWORD = 'rtwh krbx pvxy hqfh'   
 
 # In-memory storage for metrics from agents
 agent_data = {}
+connected_clients = ()
+alerts_store = []
+sent_mails_store = []
 
 # Prometheus metrics
 agent_count_metric = Gauge('agent_count', 'Number of agents sending metrics')
@@ -77,7 +89,7 @@ def ws_handler(ws):
                 mem_total = metrics.get("System Metrics", {}).get("Total Memory (GB)", 1)
                 mem_percent = (mem_used / mem_total) * 100 if mem_total else 0
 
-                if cpu_usage > 70:
+                if cpu_usage > 1:
                     send_metric_spike_mail(
                         to=user_email,
                         system_id=agent_id,
@@ -85,7 +97,7 @@ def ws_handler(ws):
                         metric_value=cpu_usage,
                         details=f"CPU Usage reached {cpu_usage}%"
                     )
-                if mem_percent > 90:
+                if mem_percent > 190:
                     send_metric_spike_mail(
                         to=user_email,
                         system_id=agent_id,
@@ -95,27 +107,74 @@ def ws_handler(ws):
                     )
 
             elif event == "alert":
-                    alert_type = data["data"].get("alert_type")
-                    print(f"🚨 Alert from {agent_id}: {alert_type}")
+                print(data["data"])
+                alert_type = data["data"].get("alert_type")
+                print(f"🚨 Alert from {agent_id}: {alert_type}")
 
-                    if alert_type == "high_bandwidth":
-                        ip_to_block = data["data"].get("ip")
-                        print(f"🛡️ Deciding to block IP: {ip_to_block}")
+                # Send alert to frontend
+                alert_message = json.dumps({
+                    "event": "alert",
+                    "data": data["data"],
+                    "agent_id": agent_id
+                })
+                for client in list(connected_clients):
+                    try:
+                        client.send(alert_message)
+                    except Exception:
+                        connected_clients.discard(client)
+                alert_entry = {
+                    "agent_id": agent_id,
+                    "alert_type": alert_type,
+                    "message": data["data"].get("message", ""),
+                    "timestamp": data["data"].get("timestamp", time.strftime("%Y-%m-%d %H:%M:%S"))
+                }
+                alerts_store.append(alert_entry)
 
-                        block_command = {
-                            "agent_id": agent_id,
-                            "event": "block",
-                            "data": {
-                                "ip": ip_to_block
-                            }
+                if alert_type == "high_bandwidth":
+                    ip_to_block = data["data"].get("ip")
+                    print(f"🛡️ Deciding to block IP: {ip_to_block}")
+
+                    block_command = {
+                        "agent_id": agent_id,
+                        "event": "block",
+                        "data": {
+                            "ip": ip_to_block
                         }
-                        ws.send(json.dumps(block_command))
-                        print(f"✅ Block command sent to {agent_id} for IP {ip_to_block}")
+                    }
+                    ws.send(json.dumps(block_command))
+                    print(f"✅ Block command sent to {agent_id} for IP {ip_to_block}")
 
         except Exception as e:
             ws.send(json.dumps({"event": "error", "message": str(e)}))
             break
+        
+from datetime import datetime
 
+@app.route('/api/alerts', methods=['GET'])
+def get_alerts():
+    # Prepare alerts with parsed timestamps and consistent fields
+    def parse_time(ts):
+        try:
+            # Try ISO format first
+            dt = datetime.fromisoformat(ts)
+            return dt.strftime("%Y-%m-%d %H:%M:%S")
+        except Exception:
+            try:
+                # Try common string format
+                dt = datetime.strptime(ts, "%Y-%m-%d %H:%M:%S")
+                return dt.strftime("%Y-%m-%d %H:%M:%S")
+            except Exception:
+                return ts  # Return as is if parsing fails
+
+    formatted_alerts = []
+    for alert in alerts_store[-100:]:
+        formatted_alerts.append({
+            "agent_id": alert.get("agent_id", ""),
+            "timestamp": parse_time(alert.get("timestamp", "")),
+            "alert_type": alert.get("alert_type", ""),
+            "message": alert.get("message", ""),
+        })
+    return jsonify(formatted_alerts)
 def send_metric_spike_mail(to, system_id, metric_name, metric_value, details):
     subject = f"metric spike - {metric_name} in the system - {system_id}"
     body = f"Alert: {metric_name} spike detected on system {system_id}.\n\nCurrent Value: {metric_value}\n\nDetails: {details}"
@@ -190,112 +249,108 @@ def get_widget_metrics():
         return jsonify({
             "cpuUsage": 0,
             "memoryUsage": 0,
-            "packetsSent": 0,
-            "packetsReceived": 0,
+            "bandwidthUsage": 0,
+            "latency": 0,
         })
 
     # Initialize accumulators
     total_cpu = 0
     total_memory = 0
-    total_packets_sent = 0
-    total_packets_received = 0
+    total_bandwidth = 0
+    total_latency = 0
     agent_count = len(agent_data)
+
+    print(f"agnet_data: {agent_data}")
 
     # Aggregate metrics from all agents
     for agent_id, metrics in agent_data.items():
         system_metrics = metrics.get("System Metrics", {})
+        agent_metrics = metrics.get("eBPF Metrics", {})
+        # print(f"system_metrics: {system_metrics}")
+        # print(f"ebpf_metrics: {metrics.get('eBPF Metrics', {})}")
         total_cpu += system_metrics.get("CPU Usage", [0])[0]
         total_memory += system_metrics.get("Free Memory (GB)", 0)
-        total_packets_sent += system_metrics.get("Packets Sent", 0)
-        total_packets_received += system_metrics.get("Packets Received", 0)
+        bandwidth_usage = agent_metrics.get("Bandwidth Usage", {})
+        total_bandwidth += sum(bandwidth_usage.values())
+        latency = agent_metrics.get("Latency", {})
+        total_latency += sum(latency.values())
+        # total_bandwidth += agent_metrics.get("Bandwidth Usage", 0)
+        # total_latency += agent_metrics.get("Latency", 0)
+
+    # print(system_metrics.get("Bandwidth Usage", 0))
+    # print(system_metrics.get("Outbound Traffic", 0))
 
     # Calculate averages
     avg_cpu = round(total_cpu / agent_count, 2)
     avg_memory = round(total_memory / agent_count, 2)
-    avg_packets_sent = int(total_packets_sent / agent_count)
-    avg_packets_received = int(total_packets_received / agent_count)
+    avg_bandwidth_usage = round(total_bandwidth / agent_count, 2)
+    avg_latency = round(total_latency / agent_count, 2)
+
+    # print(f"Average Widget Metrics: {avg_cpu}, {avg_memory}, {avg_bandwidth_usage}, {avg_outbound_traffic}")
 
     return jsonify({
         "cpuUsage": avg_cpu,
         "memoryUsage": avg_memory,
-        "packetsSent": avg_packets_sent,
-        "packetsReceived": avg_packets_received,
+        "bandwidthUsage": avg_bandwidth_usage,
+        "latency": round(avg_latency/10**6, 2),
     })
+
+import random
 
 @app.route('/dashboard-metrics', methods=['GET'])
 def get_dashboard_metrics():
     if not agent_data:
-        # Return default values if no data is available
         return jsonify({
-            "packetRate": 0,
-            "droppedPackets": 0,
+            "outboundTraffic": 0,
+            "bandwidthUsage": 0,
             "cpuUtilization": 0,
             "memoryUsage": 0,
             "latency": 0,
         })
 
-    # Initialize accumulators
-    total_packet_rate = 0
-    total_dropped_packets = 0
+    total_outbound_traffic = 0
+    total_bandwith_usage = 0
     total_cpu_utilization = 0
     total_memory_usage = 0
     total_latency = 0
     system_count = len(agent_data)
 
-    # Aggregate metrics from all systems
     for agent_id, metrics in agent_data.items():
         system_metrics = metrics.get("System Metrics", {})
         eBPF_metrics = metrics.get("eBPF Metrics", {})
 
-        # Aggregate system metrics
         total_cpu_utilization += system_metrics.get("CPU Usage", [0])[0]
         total_memory_usage += ((system_metrics.get("Used Memory (GB)", 0) / system_metrics.get("Total Memory (GB)", 1)) * 100)
-
-        # Aggregate eBPF metrics
-        total_packet_rate += sum(eBPF_metrics.get("Outbound Traffic", {}).values())
-        total_dropped_packets += sum(eBPF_metrics.get("Dropped Packets", {}).values())
+        total_outbound_traffic += sum(eBPF_metrics.get("Outbound Traffic", {}).values())
+        total_bandwith_usage += sum(eBPF_metrics.get("Bandwidth Usage", {}).values())
         total_latency += sum(eBPF_metrics.get("Latency", {}).values())
 
-    # Calculate averages
-    avg_packet_rate = total_packet_rate / system_count
-    avg_dropped_packets = total_dropped_packets / system_count
+    avg_outbound_traffic = total_outbound_traffic / system_count
+    avg_bandwidth_usage = total_bandwith_usage / system_count
     avg_cpu_utilization = total_cpu_utilization / system_count
     avg_memory_usage = total_memory_usage / system_count
     avg_latency = total_latency / system_count
 
-    # Return the averages as JSON
+    # Generate random maximums greater than current values
+    def random_max(current):
+        return random.uniform(current + 1, max(current * 2, current + 10)) if current > 0 else 100
+
+    max_outbound = random_max(avg_outbound_traffic)
+    max_bandwidth = random_max(avg_bandwidth_usage)
+    max_latency = random_max(avg_latency)
+
+    # Normalize to percentage
+    outbound_percent = min(100, round((avg_outbound_traffic / max_outbound) * 100, 2)) if max_outbound else 0
+    bandwidth_percent = min(100, round((avg_bandwidth_usage / max_bandwidth) * 100, 2)) if max_bandwidth else 0
+    latency_percent = min(100, round((avg_latency / max_latency) * 100, 2)) if max_latency else 0
+
     return jsonify({
-        "packetRate": round(avg_packet_rate, 2),
-        "droppedPackets": round(avg_dropped_packets, 2),
+        "outboundTraffic": outbound_percent,
+        "bandwidthUsage": bandwidth_percent,
         "cpuUtilization": round(avg_cpu_utilization, 2),
         "memoryUsage": round(avg_memory_usage, 2),
-        "latency": round(avg_latency, 2),
+        "latency": latency_percent,
     })
-
-@app.route('/systems-monitoring', methods=['GET'])
-def systems_monitoring():
-    systems_data = []
-
-    # Iterate through all agents in agent_data
-    for agent_id, metrics in agent_data.items():
-        system_metrics = metrics.get("System Metrics", {})
-        eBPF_metrics = metrics.get("eBPF Metrics", {})
-
-        # Calculate network throughput (sum of Bandwidth Usage)
-        network_throughput = sum(eBPF_metrics.get("Bandwidth Usage", {}).values()) / (1024 * 1024)  # Convert to Mbps
-
-        # Aggregate data for each system
-        systems_data.append({
-            "systemId": agent_id,
-            "applications": [process["Name"] for process in system_metrics.get("Per Process", [])],
-            "cpuUsage": system_metrics.get("CPU Usage", [0])[0],
-            "memoryUsage": ((system_metrics.get("Used Memory (GB)", 0) / system_metrics.get("Total Memory (GB)", 1)) * 100),
-            "networkThroughput": round(network_throughput, 2),
-            "packetDropRate": round(sum(eBPF_metrics.get("Dropped Packets", {}).values()), 2),
-            "activeConnections": len(eBPF_metrics.get("Outbound Traffic", {})),
-        })
-
-    return jsonify(systems_data)
 
 @app.route('/system/<system_id>/chrome-tabs', methods=['GET'])
 def get_chrome_tabs(system_id):
@@ -381,12 +436,18 @@ def send_mail():
             server.login(SMTP_USER, SMTP_PASSWORD)
             server.sendmail(sender, [recipient], msg.as_string())
 
+        # Store sent mail
+        sent_mails_store.append({
+            "from": sender,
+            "to": recipient,
+            "content": content,
+            "timestamp": time.strftime("%Y-%m-%d %H:%M:%S")
+        })
+
         return jsonify({'message': 'Mail sent successfully!'}), 200
     except Exception as e:
         print("Mail send error:", e)
         return jsonify({'error': 'Failed to send mail.'}), 500
-
-from email.utils import parseaddr
 
 @app.route('/mails', methods=['GET'])
 def fetch_mails():
@@ -438,6 +499,231 @@ def fetch_mails():
         return jsonify(emails)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+@app.route('/sent-mails', methods=['GET'])
+def get_sent_mails():
+    user = request.args.get('user')
+    if not user:
+        return jsonify([])
+    # Return the 10 most recent sent mails for this user
+    mails = [mail for mail in sent_mails_store if mail['from'] == user]
+    return jsonify(mails[-10:])
+
+@app.route('/systems-monitoring', methods=['GET'])
+def systems_monitoring():
+    systems_data = []
+
+    # Iterate through all agents in agent_data
+    for agent_id, metrics in agent_data.items():
+        system_metrics = metrics.get("System Metrics", {})
+        eBPF_metrics = metrics.get("eBPF Metrics", {})
+
+        # Calculate network throughput (sum of Bandwidth Usage)
+        network_throughput = sum(eBPF_metrics.get("Bandwidth Usage", {}).values()) / (1024 * 1024)  # Convert to Mbps
+
+        # Aggregate data for each system
+        systems_data.append({
+            "systemId": agent_id,
+            "applications": [process["Name"] for process in system_metrics.get("Per Process", [])],
+            "cpuUsage": system_metrics.get("CPU Usage", [0])[0],
+            "memoryUsage": ((system_metrics.get("Used Memory (GB)", 0) / system_metrics.get("Total Memory (GB)", 1)) * 100),
+            "networkThroughput": round(network_throughput, 2),
+            "packetDropRate": round(sum(eBPF_metrics.get("Dropped Packets", {}).values()), 2),
+            "activeConnections": len(eBPF_metrics.get("Outbound Traffic", {})),
+        })
+
+    return jsonify(systems_data)
+
+def flatten_agent_data(data):
+    """
+    Flatten the nested agent data structure into multiple DataFrames
+    """
+    sheets = {}
+    timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    
+    for mac_address, agent_info in data.items():
+        # System Metrics Overview
+        system_metrics = agent_info.get('System Metrics', {})
+        system_overview = []
+        
+        # Basic system metrics
+        basic_metrics = {
+            'MAC Address': mac_address,
+            'Timestamp': timestamp,
+            'CPU Usage (%)': system_metrics.get('CPU Usage', [0])[0] if system_metrics.get('CPU Usage') else 0,
+            'Free Disk (GB)': system_metrics.get('Free Disk (GB)', 0),
+            'Free Memory (GB)': system_metrics.get('Free Memory (GB)', 0),
+            'Total Disk (GB)': system_metrics.get('Total Disk (GB)', 0),
+            'Total Memory (GB)': system_metrics.get('Total Memory (GB)', 0),
+            'Used Disk (GB)': system_metrics.get('Used Disk (GB)', 0),
+            'Used Memory (GB)': system_metrics.get('Used Memory (GB)', 0)
+        }
+        system_overview.append(basic_metrics)
+        sheets['System_Overview'] = pd.DataFrame(system_overview)
+        
+        # Per Process Data
+        processes = system_metrics.get('Per Process', [])
+        if processes:
+            process_data = []
+            for process in processes:
+                process_row = {
+                    'MAC Address': mac_address,
+                    'Timestamp': timestamp,
+                    'Process Name': process.get('Name', ''),
+                    'PID': process.get('PID', ''),
+                    'CPU (%)': process.get('CPU (%)', 0),
+                    'Memory (%)': process.get('Memory (%)', 0),
+                    'Executable': process.get('Executable', ''),
+                    'User': process.get('User', ''),
+                    'ReadBytes': process.get('ReadBytes', 0),
+                    'WriteBytes': process.get('WriteBytes', 0)
+                }
+                process_data.append(process_row)
+            sheets['Process_Details'] = pd.DataFrame(process_data)
+        
+        # eBPF Metrics
+        ebpf_metrics = agent_info.get('eBPF Metrics', {})
+        
+        # Bandwidth Usage
+        bandwidth_data = []
+        for ip, usage in ebpf_metrics.get('Bandwidth Usage', {}).items():
+            bandwidth_data.append({
+                'MAC Address': mac_address,
+                'Timestamp': timestamp,
+                'IP Address': ip,
+                'Bandwidth Usage': usage
+            })
+        if bandwidth_data:
+            sheets['Bandwidth_Usage'] = pd.DataFrame(bandwidth_data)
+        
+        # Latency Data
+        latency_data = []
+        for ip, latency in ebpf_metrics.get('Latency', {}).items():
+            latency_data.append({
+                'MAC Address': mac_address,
+                'Timestamp': timestamp,
+                'IP Address': ip,
+                'Latency': latency
+            })
+        if latency_data:
+            sheets['Latency_Data'] = pd.DataFrame(latency_data)
+        
+        # Jitter Data
+        jitter_data = []
+        for ip, jitter in ebpf_metrics.get('Jitter', {}).items():
+            jitter_data.append({
+                'MAC Address': mac_address,
+                'Timestamp': timestamp,
+                'IP Address': ip,
+                'Jitter': jitter
+            })
+        if jitter_data:
+            sheets['Jitter_Data'] = pd.DataFrame(jitter_data)
+        
+        # Outbound Traffic
+        outbound_data = []
+        for ip, traffic in ebpf_metrics.get('Outbound Traffic', {}).items():
+            outbound_data.append({
+                'MAC Address': mac_address,
+                'Timestamp': timestamp,
+                'IP Address': ip,
+                'Outbound Traffic': traffic
+            })
+        if outbound_data:
+            sheets['Outbound_Traffic'] = pd.DataFrame(outbound_data)
+        
+        # Protocol Traffic
+        protocol_data = []
+        for protocol, traffic in ebpf_metrics.get('Protocol Traffic', {}).items():
+            protocol_data.append({
+                'MAC Address': mac_address,
+                'Timestamp': timestamp,
+                'Protocol': protocol,
+                'Traffic': traffic
+            })
+        if protocol_data:
+            sheets['Protocol_Traffic'] = pd.DataFrame(protocol_data)
+        
+        # Top Talkers
+        top_talkers_data = []
+        for ip, traffic in ebpf_metrics.get('Top Talkers', {}).items():
+            top_talkers_data.append({
+                'MAC Address': mac_address,
+                'Timestamp': timestamp,
+                'IP Address': ip,
+                'Traffic Volume': traffic
+            })
+        if top_talkers_data:
+            sheets['Top_Talkers'] = pd.DataFrame(top_talkers_data)
+    
+    return sheets
+
+@app.route('/download-agent-data', methods=['GET'])
+def download_agent_data():
+    try:
+        # Flatten the data into multiple sheets
+        sheets = flatten_agent_data(agent_data)
+        
+        # Create Excel file in memory
+        output = io.BytesIO()
+        
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+            for sheet_name, df in sheets.items():
+                df.to_excel(writer, sheet_name=sheet_name, index=False)
+        
+        output.seek(0)
+        
+        # Generate filename with timestamp
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        filename = f'agent_data_{timestamp}.xlsx'
+        
+        return send_file(
+            output,
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            as_attachment=True,
+            download_name=filename
+        )
+        
+    except Exception as e:
+        print("Download agent data error:", e)  # <--- Add this line
+        return jsonify({'error': f'Failed to generate Excel file: {str(e)}'}), 500
+
+@app.route('/download-agent-data-json', methods=['GET'])
+def download_agent_data_json():
+    """
+    Alternative endpoint to download agent data as JSON file with timestamp
+    """
+    try:
+        # Add timestamp to the data
+        timestamped_data = {
+            'export_timestamp': datetime.now().isoformat(),
+            'agent_data': agent_data
+        }
+        
+        # Create JSON file in memory
+        output = io.BytesIO()
+        json_str = json.dumps(timestamped_data, indent=2)
+        output.write(json_str.encode('utf-8'))
+        output.seek(0)
+        
+        # Generate filename with timestamp
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        filename = f'agent_data_{timestamp}.json'
+        
+        return send_file(
+            output,
+            mimetype='application/json',
+            as_attachment=True,
+            download_name=filename
+        )
+        
+    except Exception as e:
+        return jsonify({'error': f'Failed to generate JSON file: {str(e)}'}), 500
+
+@app.route('/health', methods=['GET'])
+def health_check():
+    """Health check endpoint"""
+    return jsonify({'status': 'healthy', 'timestamp': datetime.now().isoformat()})
 
 
 def cleanup_old_data():

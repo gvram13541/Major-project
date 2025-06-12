@@ -19,10 +19,12 @@ import {
   cilUser,
 } from '@coreui/icons'
 import CIcon from '@coreui/icons-react'
+import { useNavigate } from 'react-router-dom'
 
 import avatar10 from './../../assets/images/avatars/10.avif'
 
 const AppHeaderDropdown = () => {
+  const navigate = useNavigate()
   return (
     <CDropdown variant="nav-item">
       <CDropdownToggle placement="bottom-end" className="py-0 pe-0" caret={false}>
@@ -30,41 +32,28 @@ const AppHeaderDropdown = () => {
       </CDropdownToggle>
       <CDropdownMenu className="pt-0" placement="bottom-end">
         <CDropdownHeader className="bg-body-secondary fw-semibold mb-2">Account</CDropdownHeader>
-        <CDropdownItem href="#">
+        <CDropdownItem onClick={() => navigate('/notifications')}>
           <CIcon icon={cilBell} className="me-2" />
           Updates
-          <CBadge color="info" className="ms-2">
-            42
-          </CBadge>
         </CDropdownItem>
-        <CDropdownItem href="#">
+        <CDropdownItem onClick={() => navigate('/mail')}>
           <CIcon icon={cilEnvelopeOpen} className="me-2" />
-          Messages
-          <CBadge color="success" className="ms-2">
-            42
-          </CBadge>
+          Mails
         </CDropdownItem>
-        <CDropdownItem href="#">
+        <CDropdownItem onClick={() => navigate('/tasks')}>
           <CIcon icon={cilTask} className="me-2" />
           Tasks
-          <CBadge color="danger" className="ms-2">
-            42
-          </CBadge>
         </CDropdownItem>
-        <CDropdownItem href="#">
+        <CDropdownItem onClick={() => navigate('/comments')}>
           <CIcon icon={cilCommentSquare} className="me-2" />
           Comments
-          <CBadge color="warning" className="ms-2">
-            42
-          </CBadge>
         </CDropdownItem>
-        <CDropdownHeader className="bg-body-secondary fw-semibold my-2">Settings</CDropdownHeader>
-        <CDropdownItem href="#">
+        <CDropdownItem onClick={() => navigate('/profile')}>
           <CIcon icon={cilUser} className="me-2" />
           Profile
         </CDropdownItem>
-        <CDropdownItem href="#">
-          <CIcon icon={cilSettings} className="me-2" />
+        <CDropdownItem onClick={() => navigate('/settings')}>
+          <CIcon icon={cilTask} className="me-2" />
           Settings
         </CDropdownItem>
         <CDropdownDivider />

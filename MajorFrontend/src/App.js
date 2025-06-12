@@ -1,6 +1,7 @@
 import React, { Suspense, useEffect } from 'react'
 import { HashRouter, Route, Routes, Navigate } from 'react-router-dom'
 import { useSelector } from 'react-redux'
+import { useAuth0 } from '@auth0/auth0-react';
 
 import { CSpinner, useColorModes } from '@coreui/react'
 import './scss/style.scss'
@@ -13,6 +14,11 @@ import ChromeTabs from './views/dashboard/ChromeTabs'
 import MonitoringAlerts from './views/notifications/MonitoringAlerts'
 import Settings from './views/pages/settings/Settings'
 import Mail from "./views/pages/mail/mail";
+import { NotificationProvider } from './views/notifications/NotificationContext'
+import Notifications from './views/notifications/Notifications'
+import Tasks from './views/pages/tasks/Tasks'
+import Comments from './views/pages/comments/Comments'
+import Profile from './views/pages/profile/Profile'
 
 // Containers
 const DefaultLayout = React.lazy(() => import('./layout/DefaultLayout'))
@@ -26,12 +32,25 @@ const Logout = React.lazy(() => import('./views/pages/logout/Logout'))
 
 
 // Private Route Component
+// const PrivateRoute = ({ children }) => {
+//   const isAuthenticated = localStorage.getItem('isAuthenticated') === 'true'
+//   return isAuthenticated ? children : <Navigate to="/login" />
+// }
 const PrivateRoute = ({ children }) => {
-  const isAuthenticated = localStorage.getItem('isAuthenticated') === 'true'
-  return isAuthenticated ? children : <Navigate to="/login" />
-}
+  const { isAuthenticated, isLoading } = useAuth0();
+  if (isLoading) return <div>Loading...</div>;
+  return isAuthenticated ? children : <Navigate to="/login" />;
+};
 
 const App = () => {
+  // const { isAuthenticated, isLoading, loginWithRedirect } = useAuth0();
+  // useEffect(() => {
+  //   if (!isLoading && !isAuthenticated) {
+  //     loginWithRedirect();
+  //   }
+  // }, [isLoading, isAuthenticated, loginWithRedirect]);
+
+  // if (isLoading) return <div>Loading...</div>;
   const { isColorModeSet, setColorMode } = useColorModes('coreui-free-react-admin-template-theme')
   const storedTheme = useSelector((state) => state.theme)
 
@@ -51,6 +70,7 @@ const App = () => {
 
   return (
     <HashRouter>
+      <NotificationProvider>
       <Suspense
         fallback={
           <div className="pt-3 text-center">
@@ -70,6 +90,11 @@ const App = () => {
       <Route path="/system/:systemId/chrome-tabs" element={<ChromeTabs />} />
       <Route path="/system/:systemId/alerts" element={<MonitoringAlerts />} />
       <Route path="/mail" name="Mail" element={<Mail />} />
+      <Route path="/notifications" name="Notifications" element={<Notifications />} />
+      <Route path="/tasks" element={<Tasks />} />
+      <Route path="/comments" element={<Comments />} />
+      <Route path="/profile" element={<Profile />} />
+      {/* Private Routes */}
       <Route
         path="*"
         name="Home"
@@ -81,6 +106,7 @@ const App = () => {
       />
     </Routes>
       </Suspense>
+      </NotificationProvider>
     </HashRouter>
   )
 }

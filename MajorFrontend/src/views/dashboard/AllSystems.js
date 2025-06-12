@@ -91,13 +91,13 @@ const AllSystems = () => {
                     >
                       View Details
                     </CButton>
-                    <CButton
+                    {/* <CButton
                       color="primary"
                       size="sm"
                       onClick={() => navigate(`/system/${system.systemId}/iprules`)}
                     >
                       IP Rules
-                    </CButton>
+                    </CButton> */}
                     <CButton
                       color="success"
                       size="sm"
@@ -105,7 +105,7 @@ const AllSystems = () => {
                     >
                       Chorme Tabs
                     </CButton>
-                    <CButton
+                    {/* <CButton
                       color="secondary"
                       size="sm"
                       onClick={() => navigate(`/system/${system.systemId}/config`)}
@@ -132,7 +132,7 @@ const AllSystems = () => {
                       onClick={() => handleShutdownSystem(system.systemId)}
                     >
                       Shutdown
-                    </CButton>
+                    </CButton> */}
                   </CButtonGroup>
                 </CTableDataCell>
               </CTableRow>
